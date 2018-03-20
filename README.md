@@ -9,9 +9,9 @@ introducing wacky adnotations in resulting files.
 # TODO
 - Long strings and long comments.
 - Integrate preprocessor into the parser.
-- Reading from anything other than stdin.
 - Recursively reading from load()ed files.
 - Better location info (e.g. filenames when load()ing other src files).
+- Store location info in AST.
 
 # Not implemented
 - Nested long strings.

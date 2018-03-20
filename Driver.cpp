@@ -2,8 +2,8 @@
 
 #include "Driver.hpp"
 
-Driver::Driver(const std::string &filename)
-	: m_parser{*this}, m_scanner{*this}, m_filename{filename}, m_position{&m_filename, 1, 1}
+Driver::Driver()
+	: m_parser{*this}, m_scanner{*this}, m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
 {
 }
 
@@ -33,4 +33,18 @@ void Driver::nextLine()
 void Driver::step()
 {
 	m_position += 1;
+}
+
+bool Driver::setInputFile(const char *filename)
+{
+	m_filename = filename;
+	m_input.open(m_filename);
+	if (m_input.fail()) {
+		std::cerr << "Unable to open file for reading: " << m_filename.c_str() << '\n';
+		return false;
+	}
+
+	m_scanner.switch_streams(&m_input);
+	m_position.initialize(&m_filename);
+	return true;
 }
