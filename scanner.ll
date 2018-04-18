@@ -89,10 +89,6 @@ local {
 	return yy::Parser::make_LOCAL(m_driver.location(YYText()));
 }
 
-\"(([^\"]|\\\")*[^\\])?\"|\'(([^\']|\\\')*[^\\])?\' {
-	return yy::Parser::make_STRING_VALUE(YYText(), m_driver.location(YYText()));
-}
-
 0[xX]({DIGIT}|[A-Fa-f])+ {
 	return yy::Parser::make_INT_VALUE(std::strtol(YYText(), nullptr, 16), m_driver.location(YYText()));
 }
@@ -103,6 +99,10 @@ local {
 
 {DIGIT}*[.]{DIGIT}+|{DIGIT}+[.]{DIGIT}* {
 	return yy::Parser::make_REAL_VALUE(std::strtod(YYText(), nullptr), m_driver.location(YYText()));
+}
+
+\"(\\.|[^\\"])*\"|\'(\\.|[^\\'])*\' {
+	return yy::Parser::make_STRING_VALUE(YYText(), m_driver.location(YYText()));
 }
 
 "..." {
