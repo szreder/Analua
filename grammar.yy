@@ -171,10 +171,12 @@ var_list ASSIGN expr_list {
 }
 | LOCAL name_list {
 	auto tmp = new Assignment{$name_list, nullptr};
+	tmp->setLocal(true);
 	$$ = tmp;
 }
 | LOCAL name_list ASSIGN expr_list {
 	auto tmp = new Assignment{$name_list, $expr_list};
+	tmp->setLocal(true);
 	$$ = tmp;
 }
 ;

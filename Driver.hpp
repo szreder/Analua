@@ -11,13 +11,11 @@ class Driver {
 	friend class yy::Parser;
 public:
 	Driver();
-	~Driver()
-	{
-		for (const auto &c : m_chunks)
-			c->print();
-	}
 
 	void addChunk(Chunk *chunk);
+	std::vector <std::unique_ptr <Chunk> > & chunks();
+	const std::vector <std::unique_ptr <Chunk> > & chunks() const;
+
 	int parse();
 
 	yy::location location(const char *s);

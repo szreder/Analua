@@ -92,8 +92,8 @@ public:
 	void append(const std::string &name) { m_names.push_back(name); }
 	void append(std::string &&name) { m_names.push_back(std::move(name)); }
 
+	bool hasEllipsis() const { return m_ellipsis; }
 	void setEllipsis() { m_ellipsis = true; };
-
 
 	void print(int indent = 0) const override
 	{
@@ -233,16 +233,26 @@ public:
 
 class Assignment : public Node {
 public:
-	Assignment(VarList *vl, ExprList *el) : m_varList{vl}, m_exprList{el}, m_local{false} {}
+	Assignment(VarList *vl, ExprList *el) : m_varList{vl}, m_exprList{el}, m_local{false}
+	{
+		if (!m_exprList)
+			m_exprList.reset(new ExprList{});
+	}
+
 	Assignment(ParamList *pl, ExprList *el) : m_varList{new VarList{}}, m_exprList{el}, m_local{true}
 	{
 		for (const auto &name : pl->names())
 			m_varList->append(new LValue{name});
 		delete pl;
+
+		if (!m_exprList)
+			m_exprList.reset(new ExprList{});
 	}
 
-	const VarList * varList() const { return m_varList.get(); }
-	const ExprList * exprList() const { return m_exprList.get(); }
+	void setLocal(bool local) { m_local = local; }
+
+	const VarList & varList() const { return *m_varList; }
+	const ExprList & exprList() const { return *m_exprList; }
 
 	void print(int indent = 0) const override
 	{
@@ -251,7 +261,7 @@ public:
 			std::cout << "local ";
 		std::cout << "assignment:\n";
 		m_varList->print(indent + 1);
-		if (m_exprList) {
+		if (!m_exprList->exprs().empty()) {
 			m_exprList->print(indent + 1);
 		} else {
 			do_indent(indent + 1);
@@ -370,9 +380,9 @@ public:
 		m_args->print(indent + 1);
 	}
 
-	const Node * functionExpr() const { return m_functionExpr.get(); }
+	const Node & functionExpr() const { return *m_functionExpr; }
 
-	const ExprList * args() const { return m_args.get(); }
+	const ExprList & args() const { return *m_args; }
 
 	Node::Type type() const override { return Type::FunctionCall; }
 private:
@@ -389,10 +399,10 @@ public:
 	{
 		do_indent(indent);
 		std::cout << "Method call:\n";
-		functionExpr()->print(indent + 1);
+		functionExpr().print(indent + 1);
 		do_indent(indent);
 		std::cout << "Method name: " << m_methodName << '\n';
-		args()->print(indent + 1);
+		args().print(indent + 1);
 	}
 
 	Node::Type type() const override { return Type::MethodCall; }
@@ -520,8 +530,8 @@ public:
 
 	Type binOpType() const { return m_type; }
 
-	const Node * left() const { return m_left.get(); }
-	const Node * right() const { return m_right.get(); }
+	const Node & left() const { return *m_left; }
+	const Node & right() const { return *m_right; }
 
 	void print(int indent = 0) const override
 	{
@@ -559,7 +569,7 @@ public:
 
 	Type unOpType() const { return m_type; }
 
-	Node * operand() const { return m_operand.get(); }
+	const Node & operand() const { return *m_operand; }
 
 	void print(int indent = 0) const override
 	{
@@ -612,7 +622,29 @@ class Function : public Node {
 public:
 	Function(ParamList *params, Chunk *chunk) : m_params{params}, m_chunk{chunk}, m_local{false} {}
 
+	const Chunk & chunk() const { return *m_chunk; }
+
+	bool isLocal() const { return m_local; }
 	void setLocal() { m_local = true; }
+
+	std::string fullName() const
+	{
+		if (m_name.empty())
+			return "<anonymous>";
+
+		std::string result = m_name[0];
+		for (auto iter = m_name.cbegin() + 1; iter != m_name.cend(); ++iter) {
+			result.push_back('.');
+			result += *iter;
+		}
+
+		if (!m_method.empty()) {
+			result.push_back(':');
+			result += m_method;
+		}
+
+		return result;
+	}
 
 	void setName(const FunctionName &name)
 	{
@@ -635,7 +667,7 @@ public:
 
 		if (!m_name.empty()) {
 			std::cout << m_name[0];
-			for (auto iter = m_name.begin() + 1; iter != m_name.end(); ++iter)
+			for (auto iter = m_name.cbegin() + 1; iter != m_name.cend(); ++iter)
 				std::cout << "." << *iter;
 
 			if (!m_method.empty())
@@ -664,6 +696,14 @@ public:
 		}
 	}
 
+	const ParamList & params() const
+	{
+		if (!m_params) {
+			static const ParamList Empty;
+			return Empty;
+		}
+		return *m_params;
+	}
 	Node::Type type() const override { return Node::Type::Function; }
 
 private:

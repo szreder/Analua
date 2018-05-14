@@ -12,6 +12,16 @@ void Driver::addChunk(Chunk *chunk)
 	m_chunks.emplace_back(chunk);
 }
 
+std::vector <std::unique_ptr <Chunk> > & Driver::chunks()
+{
+	return m_chunks;
+}
+
+const std::vector <std::unique_ptr <Chunk> > & Driver::chunks() const
+{
+	return m_chunks;
+}
+
 int Driver::parse()
 {
 	return m_parser.parse();
