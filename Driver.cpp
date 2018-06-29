@@ -3,7 +3,7 @@
 #include "Driver.hpp"
 
 Driver::Driver()
-	: m_parser{*this}, m_scanner{*this}, m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
+	: m_parser{*this}, m_scanner{*this}, m_inputStream{&m_preprocessor}, m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
 {
 }
 
@@ -24,6 +24,7 @@ const std::vector <std::unique_ptr <Chunk> > & Driver::chunks() const
 
 int Driver::parse()
 {
+	m_scanner.switch_streams(&m_inputStream);
 	return m_parser.parse();
 }
 
@@ -48,13 +49,14 @@ void Driver::step()
 bool Driver::setInputFile(const char *filename)
 {
 	m_filename = filename;
-	m_input.open(m_filename);
-	if (m_input.fail()) {
+	m_inputFile.open(m_filename);
+	if (m_inputFile.fail()) {
 		std::cerr << "Unable to open file for reading: " << m_filename.c_str() << '\n';
 		return false;
 	}
 
-	m_scanner.switch_streams(&m_input);
 	m_position.initialize(&m_filename);
+	m_preprocessor.setInputFile(m_filename, &m_inputFile);
+
 	return true;
 }

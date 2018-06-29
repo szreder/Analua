@@ -15,6 +15,7 @@ set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 
 set (SRC_FILES
 	Driver.cpp
+	Preprocessor.cpp
 	main.cpp
 )
 

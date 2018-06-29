@@ -1,17 +1,25 @@
 #pragma once
 
+#include <iosfwd>
 #include <string>
 
 #include "position.hh"
 
-class Preprocessor {
+class Preprocessor : public std::streambuf {
 public:
-	const std::string & data() const { return m_data; }
+	Preprocessor() = default;
+	Preprocessor(const Preprocessor &) = delete;
+	Preprocessor operator = (const Preprocessor &) = delete;
 
-	Preprocessor & operator += (const std::string &input);
-	Preprocessor & operator += (char input);
+	const std::string & data() const { return m_data; }
 	bool preprocess();
+	void setInputFile(const std::string &filename, std::istream *input);
+
 private:
+	int underflow();
+
+	std::istream *m_input = &std::cin;
+	std::string m_filename;
 	std::string m_data;
 	yy::position m_position;
 };

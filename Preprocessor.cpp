@@ -1,46 +1,18 @@
 #include <iostream>
+#include <iterator>
 
 #include "Preprocessor.hpp"
 
-namespace {
-
-namespace Error {
-	static const std::string LongComment = "Error parsing long comment";
-
-	static const std::string EofReached = "EOF reached";
-	static const std::string UnexpectedSymbol = "Unexpected symbol";
-}
-
-struct ErrorStream {
-	ErrorStream(std::ostream &os = std::cerr) : m_os{os} {}
-	~ErrorStream() { m_os << '\n'; }
-
-	template <typename T>
-	inline ErrorStream & operator << (const T &arg)
-	{
-		m_os << arg;
-		return *this;
-	}
-
-	std::ostream &m_os;
-};
-
-
-inline ErrorStream error(const std::string &where, const std::string &why)
-{
-	ErrorStream es{std::cerr};
-	es << where << ": " << why;
-	return es;
-}
-
-}
-
 bool Preprocessor::preprocess()
 {
-	std::string result;
-	char stringChar = 0;
+	std::istreambuf_iterator<char> p{m_input->rdbuf()};
+	const std::istreambuf_iterator<char> EOFIter;
 
-	auto p = m_data.cbegin();
+	if (p == EOFIter)
+		return false;
+
+	std::string result;
+	char stringDelim = 0;
 
 	auto step = [this, &p]
 	{
@@ -54,53 +26,75 @@ bool Preprocessor::preprocess()
 		++p;
 	};
 
-	while (p != m_data.cend()) {
-		if (stringChar != 0) {
+	auto longCommentCheck = [this, &p, &EOFIter, &result, &step]
+	{
+		if (p == EOFIter || *p != '[')
+			return -1;
+
+		result.push_back(' ');
+		step();
+
+		if (p == EOFIter || (*p != '=' && *p != '['))
+			return -1;
+
+		int depth = 0;
+		while (p != EOFIter && *p == '=') {
+			result.push_back(' ');
+			step();
+			++depth;
+		}
+
+		if (p == EOFIter || *p != '[')
+			return -1;
+
+		result.push_back(' ');
+		step();
+		return depth;
+	};
+
+	while (p != EOFIter) {
+		if (stringDelim != 0) {
 			if (*p == '\\') {
 				result.push_back(step());
-				if (p != m_data.cend())
+				if (p != EOFIter)
 					result.push_back(step());
 				continue;
 			}
 
 			result.push_back(*p);
-			if (*p == stringChar)
-				stringChar = 0;
+			if (*p == stringDelim)
+				stringDelim = 0;
 			step();
 		} else if (*p == '-' && !result.empty() && result.back() == '-') {
 			result.pop_back();
 			result.append(2, ' ');
 			step();
 
-			if (*p == '[' && p != m_data.cend() && (*(p + 1) == '[' || *(p + 1) == '=')) {
-				const yy::position commentStart = m_position - 2;
+			const yy::position commentStart = m_position - 2;
+			if (const int depth = longCommentCheck(); depth >= 0) {
 				//long comment
-				std::string endMarker = "]";
-				auto tmp = p + 1;
-				while (tmp != m_data.cend() && *tmp == '=')
-					++tmp;
-				if (tmp == m_data.cend()) {
-					error(Error::LongComment, Error::EofReached) << ", started at: " << commentStart;
-					return false;
-				}
+				bool possibleMatch = false;
+				bool endComment = false;
+				int depthLeft;
 
-				if (*tmp != '[') {
-					error(Error::LongComment, Error::UnexpectedSymbol) << " (" << *tmp << "), started at: " << commentStart;;
-					return false;
-				}
+				while (p != EOFIter && !endComment) {
+					switch (*p) {
+						case '=':
+							if (possibleMatch)
+								--depthLeft;
+							break;
+						case ']':
+							if (!possibleMatch || depthLeft != 0) {
+								possibleMatch = true;
+								depthLeft = depth;
+							} else if (depthLeft == 0) {
+								endComment = true;
+							}
+							break;
+						default:
+							possibleMatch = false;
+					}
 
-				endMarker.append(tmp - p - 1, '=');
-				endMarker.push_back(']');
-				result.append(endMarker.size(), ' ');
-
-				p = tmp + 1;
-				const auto endMarkerIdx = m_data.find(endMarker, p - m_data.cbegin());
-				if (endMarkerIdx == std::string::npos) {
-					error(Error::LongComment, Error::EofReached) << ", started at: " << commentStart;
-					return false;
-				}
-				const auto endMarkerIter = m_data.cbegin() + endMarkerIdx + endMarker.size();
-				while (p != endMarkerIter) {
 					if (*p == '\n') {
 						result.push_back('\n');
 						nextLine();
@@ -109,32 +103,43 @@ bool Preprocessor::preprocess()
 						step();
 					}
 				}
+
+				if (!endComment) {
+					std::cerr << "Error parsing long comment (EOF reached) started at: " << commentStart;
+					return false;
+				}
+
 			} else {
 				//short comment
-				while (p != m_data.end() && step() != '\n')
+				while (p != EOFIter && step() != '\n')
 					result.push_back(' ');
 				result.push_back('\n');
 				m_position.lines(1);
 			}
 		} else {
 			if (*p == '\'' || *p == '"')
-				stringChar = *p;
-			result += step();
+				stringDelim = *p;
+			result.push_back(step());
 		}
 	}
 
-	m_data = result;
+	m_data = std::move(result);
+
 	return true;
 }
 
-Preprocessor & Preprocessor::operator += (const std::string &input)
+void Preprocessor::setInputFile(const std::string &filename, std::istream *input)
 {
-	m_data += input;
-	return *this;
+	m_filename = filename;
+	m_position.initialize(&m_filename);
+	m_input = input;
 }
 
-Preprocessor & Preprocessor::operator += (char input)
+int Preprocessor::underflow()
 {
-	m_data += input;
-	return *this;
+	if (!preprocess())
+		return traits_type::eof();
+
+	setg(m_data.data(), m_data.data(), m_data.data() + m_data.size());
+	return traits_type::to_int_type(m_data[0]);
 }

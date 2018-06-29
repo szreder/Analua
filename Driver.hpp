@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "AST.hpp"
+#include "Preprocessor.hpp"
 #include "Scanner.hpp"
 
 class Driver {
@@ -25,9 +26,11 @@ public:
 	bool setInputFile(const char *filename);
 
 private:
+	Preprocessor m_preprocessor;
 	yy::Parser m_parser;
 	Scanner m_scanner;
-	std::ifstream m_input;
+	std::istream m_inputStream;
+	std::ifstream m_inputFile;
 
 	std::vector <std::unique_ptr <Chunk> > m_chunks;
 	std::string m_filename;
